@@ -1,14 +1,12 @@
 # %% import external dependencies
 from glob import glob
-from stat import S_IEXEC
-from os import remove, chmod, stat
-from os.path import join, basename, splitext, exists, getmtime
+from os import remove
+from os.path import basename, splitext, exists, getmtime
 from typing import List, Set, Mapping
 from time import sleep
 from datetime import datetime, timedelta
 from threading import Thread, active_count
 from itertools import groupby
-from functools import partial
 from subprocess import call
 from textwrap import dedent
 from tempfile import NamedTemporaryFile
@@ -116,8 +114,7 @@ def work(key: str) -> None:
                     )
                 )
                 fn = f.name
-            chmod(fn, stat(fn).st_mode|S_IEXEC)
-            call(fn)
+            call(["/bin/bash", fn])
     remove(fn)
     remove(locker)
 
