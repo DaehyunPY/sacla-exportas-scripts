@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # %% external dependencies
 from array import array
+from itertools import islice
 from argparse import ArgumentParser
 
 from ROOT import TFile, TTree
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf
-from pyspark.sql.types import StructType, StructField, DoubleType, IntegerType
 
 
 # %% parser & parameters
@@ -31,42 +30,17 @@ builder = (SparkSession
            )
 
 
-# %%
-@udf(StructType([StructField('IonNum', IntegerType(), nullable=False),
-                *[StructField(f'IonT{i}', DoubleType(), nullable=True) for i in range(maxhits)],
-                *[StructField(f'IonX{i}', DoubleType(), nullable=True) for i in range(maxhits)],
-                *[StructField(f'IonY{i}', DoubleType(), nullable=True) for i in range(maxhits)],
-                *[StructField(f'IonFlag{i}', IntegerType(), nullable=True) for i in range(maxhits)]]))
-def flat(hits):
-    return {
-        'IonNum': len(hits),
-        **{f'IonT{i}': h.t for i, h in enumerate(hits)},
-        **{f'IonX{i}': h.x for i, h in enumerate(hits)},
-        **{f'IonY{i}': h.y for i, h in enumerate(hits)},
-        **{f'IonFlag{i}': h.flag for i, h in enumerate(hits)},
-    }
-
-
+# %% to root
 with builder.getOrCreate() as spark:
     df = spark.read.parquet(*targets)
-    flatten = (
-        df
-            .withColumn('flatten', flat('hits'))
-            .withColumnRenamed('tag', 'Tag')
-            .select('Tag', 'flatten.*')
-    )
-
-    # %% to root
     f = TFile(saveas, 'NEW')
     tree = TTree('Events', 'Events')
-
     tag = array('i', [0])
     nhits = array('i', [0])
-    tarr = tuple(array('f', [0]) for _ in range(maxhits))
-    xarr = tuple(array('f', [0]) for _ in range(maxhits))
-    yarr = tuple(array('f', [0]) for _ in range(maxhits))
-    flagarr = tuple(array('i', [0]) for _ in range(maxhits))
-
+    tarr = [array('f', [0]) for _ in range(maxhits)]
+    xarr = [array('f', [0]) for _ in range(maxhits)]
+    yarr = [array('f', [0]) for _ in range(maxhits)]
+    flagarr = [array('i', [0]) for _ in range(maxhits)]
     tree.Branch('Tag', tag, 'Tag/I')
     tree.Branch('IonNum', nhits, 'IonNum/I')
     for i in range(maxhits):
@@ -74,15 +48,14 @@ with builder.getOrCreate() as spark:
         tree.Branch(f'IonX{i}', xarr[i], f'IonX{i}/F')
         tree.Branch(f'IonY{i}', yarr[i], f'IonY{i}/F')
         tree.Branch(f'IonFlag{i}', flagarr[i], f'IonFlag{i}/I')
-
-    for d in flatten.toLocalIterator():
-        tag[0] = d.Tag
-        nhits[0] = d.IonNum
-        for i in range(min(d.IonNum, maxhits)):
-            tarr[i][0] = getattr(d, f'IonT{i}')
-            xarr[i][0] = getattr(d, f'IonX{i}')
-            yarr[i][0] = getattr(d, f'IonY{i}')
-            flagarr[i][0] = getattr(d, f'IonFlag{i}')
+    for d in df.toLocalIterator():
+        tag[0] = d.tag
+        nhits[0] = len(d.hits)
+        for i, h in enumerate(islice(d.hits, maxhits)):
+            tarr[i][0] = h.t
+            xarr[i][0] = h.x
+            yarr[i][0] = h.y
+            flagarr[i][0] = h.flag
         tree.Fill()
     f.Write()
     f.Close()

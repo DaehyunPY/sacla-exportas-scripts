@@ -4,8 +4,9 @@ Preanalyzing daemon.
 """
 # %% import external dependencies
 from glob import glob
-from os import remove, makedirs
-from os.path import dirname, join, basename, splitext, exists, relpath, getmtime
+from stat import S_IEXEC
+from os import remove, makedirs, chmod, stat
+from os.path import dirname, join, basename, splitext, exists, relpath, getmtime, realpath
 from typing import List, Set, Mapping
 from time import sleep
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ from threading import Thread, active_count
 from itertools import groupby
 from functools import partial
 from subprocess import call
+from textwrap import dedent
 
 from importlib_resources import path
 
@@ -21,7 +23,7 @@ __all__ = ['run']
 
 
 # %% parameters
-maxworkers = 4
+maxworkers = 3
 startinterval = 30
 
 
@@ -29,7 +31,7 @@ def workingdir(key: str) -> str:
     """
     Working dir where a preanalyzing process works.
     """
-    return f'/path/to/{key}'
+    return f'/home/uedalab/Desktop/flatten_root_files/{key}'
 
 
 def keypatt(lmafilename: str) -> str:
@@ -53,7 +55,7 @@ def targetlist() -> List[str]:
     """
     Target lma file list.
     """
-    return glob(f'/path/to/*.parquet')
+    return glob(f'/home/uedalab/Desktop/parquet_files/*.parquet')
 
 
 # %%
@@ -93,20 +95,24 @@ def work(key: str) -> None:
     print(f"[{datetime.now()}] Working on key '{key}'...")
     with open(locker, 'w'):
         makedirs(wdir)
-        with open(join(wdir, 'job.sh'), 'w') as f:
-
-            f.write(dedent(
-                f"""\
-                #!/bin/bash
-                docker run -ti --rm \
-                    -v $(pwd):$(pwd) \
-                    -v /Users:/Users \
-                    daehyunpy/sp8-delayline $(realpath exportas.py) \
-                        {' '.join([f for f in targetlist() if keypatt(f)==key])} \
-                        -o {join(wdir, f'{key}.root')}
-                """
-            ))
-        call(join(wdir, 'job.sh'), stdout=join(wdir, 'log.out'), stderr=join(wdir, 'log.err'), cwd='')
+        job = join(wdir, 'job.sh')
+        with open(join(wdir, 'log.out'), 'w') as out, open(join(wdir, 'log.err'), 'w') as err:
+            with open(job, 'w') as f:
+                f.write(dedent(
+                    """\
+                    #!/bin/bash
+                    docker run -ti --rm  \\
+                        -v $(pwd):$(pwd) \\
+                        -v /home:/home \\
+                        daehyunpy/sp8-delayline {exe} \\
+                            {targets} \\
+                            -o {output}
+                    """.format(exe=f'"{realpath("exportas.py")}"',
+                            targets=' \\\n        '.join([f'"{f}"' for f in targetlist() if keypatt(f)==key]),
+                            output=f'"{join(wdir, f"{key}.root")}"')
+                ))
+            chmod(job, stat(job).st_mode|S_IEXEC)
+            call(job, stdout=out, stderr=err)
     remove(locker)
 
 
