@@ -1,8 +1,8 @@
 # %% import external dependencies
 from glob import glob
 from stat import S_IEXEC
-from os import remove, makedirs, chmod, stat
-from os.path import dirname, join, basename, splitext, exists, relpath, getmtime, realpath
+from os import remove, chmod, stat
+from os.path import join, basename, splitext, exists, getmtime
 from typing import List, Set, Mapping
 from time import sleep
 from datetime import datetime, timedelta
@@ -11,8 +11,8 @@ from itertools import groupby
 from functools import partial
 from subprocess import call
 from textwrap import dedent
+from tempfile import NamedTemporaryFile
 
-import docker
 from importlib_resources import path
 
 from . import rsc
@@ -94,24 +94,31 @@ def work(key: str) -> None:
     out = workingfile(key)
     locker = f'{out}.locked'
     print(f"[{datetime.now()}] Working on key '{key}'...")
-    with open(locker, 'w'):)
+    with open(locker, 'w'):
         with path(rsc, 'exportas.py') as exe:
-            client = docker.from_env()
-            client.containers.run(
-                'daehyunpy/sp8-delayline',
-                " ".join([
-                    '/app/exe',
-                    *[quote(f) for f in targetlist() if keypatt(f)==key],
-                    '-o',
-                    quote(out),
-                ]),
-                remove=True,
-                working_dir='/app/',
-                volumes={
-                    exe: {'bind': '/app/exe', 'ro'},
-                    mountpoint: {'bind': mountpoint, 'rw'},
-                },
-            )
+            with NamedTemporaryFile('w', delete=False) as f:
+                f.write(dedent("""\
+                    #!/bin/bash
+                    docker run \
+                        --rm \
+                        -w /app/ \
+                        -v {exe}:/app/exe:ro \
+                        -v {mountpoint}:{mountpoint}:rw \
+                        daehyunpy/sp8-delayline \
+                        /app/exe \
+                        {targets} \
+                        -o {out}
+                    """).format(
+                        exe=quote(exe),
+                        mountpoint=quote(mountpoint),
+                        targets=' '.join(quote(f) for f in targetlist() if keypatt(f)==key),
+                        out=quote(out),
+                    )
+                )
+                fn = f.name
+            chmod(fn, stat(fn).st_mode|S_IEXEC)
+            call(fn)
+    remove(fn)
     remove(locker)
 
 

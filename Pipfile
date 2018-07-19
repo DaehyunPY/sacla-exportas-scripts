@@ -5,7 +5,6 @@ name = "pypi"
 
 [packages]
 importlib-resources = "*"
-docker = "*"
 
 [dev-packages]
 
