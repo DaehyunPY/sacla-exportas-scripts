@@ -14,6 +14,11 @@ from itertools import groupby
 from functools import partial
 from subprocess import call
 
+from importlib_resources import path
+
+
+__all__ = ['run']
+
 
 # %% parameters
 maxworkers = 4
@@ -89,6 +94,7 @@ def work(key: str) -> None:
     with open(locker, 'w'):
         makedirs(wdir)
         with open(join(wdir, 'job.sh'), 'w') as f:
+
             f.write(dedent(
                 f"""\
                 #!/bin/bash
@@ -100,13 +106,14 @@ def work(key: str) -> None:
                         -o {join(wdir, f'{key}.root')}
                 """
             ))
-        call(join(wdir, 'job.sh'), stdout=join(wdir, 'log.out'), stderr=join(wdir, 'log.err'))
+        call(join(wdir, 'job.sh'), stdout=join(wdir, 'log.out'), stderr=join(wdir, 'log.err'), cwd='')
     remove(locker)
 
 
 # %% inf loop
-for jobs in todolist():
-    for key in jobs:
-        if not islocked(key) and active_count()-1 < maxworkers:
-            job = Thread(target=work, args=[key])
-            job.start()
+def run() -> None:
+    for jobs in todolist():
+        for key in jobs:
+            if not islocked(key) and active_count()-1 < maxworkers:
+                job = Thread(target=work, args=[key])
+                job.start()
