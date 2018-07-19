@@ -12,6 +12,7 @@ from functools import partial
 from subprocess import call
 from textwrap import dedent
 
+import docker
 from importlib_resources import path
 
 from . import rsc
@@ -23,34 +24,35 @@ __all__ = ['run']
 # %% parameters
 maxworkers = 3
 startinterval = 30
+mountpoint = '/home/uedalab/Desktop'
 
 
-def workingdir(key: str) -> str:
+def workingfile(key: str) -> str:
     """
     Working dir where a preanalyzing process works.
     """
-    return f'/home/uedalab/Desktop/flatten_root_files/{key}'
+    return f'{mountpoint}/flatten_root_files/{key}.root'
 
 
-def keypatt(lmafilename: str) -> str:
+def keypatt(filename: str) -> str:
     """
     A rule (pattern) getting keys from lma filenames, where key is unique str indentifying lma file groups.
     In other words, files having the same key belong to the same group. For example, if we define the function as...
 
-    keypatt(lmafilename: str) -> str:
+    keypatt(filename: str) -> str:
         from os.path import basename
-        key, _ = basename(lmafilename).rsplit('__', maxsplit=1)
+        key, _ = basename(filename).rsplit('__', maxsplit=1)
         return key
     
     then, these two files 'aq001__0000.lma' and 'aq001__0001.lma' have the same key 'aq001'; they will be preanalyzed
     as the same lma group.
     """
-    key, _ = splitext(basename(lmafilename))
+    key, _ = splitext(basename(filename))
     return key
 
 
 def targetlist() -> List[str]:
-    return glob(f'/home/uedalab/Desktop/parquet_files/*.parquet')
+    return glob(f'{mountpoint}/parquet_files/*.parquet')
 
 
 # %%
@@ -60,7 +62,7 @@ def currentkeys() -> Mapping[str, float]:
     Do not return keys which already have been analyzed.
     """
     return  {k: max(getmtime(f) for f in groupped)
-             for k, groupped in groupby(targetlist(), keypatt) if not exists(workingdir(k))}
+             for k, groupped in groupby(targetlist(), keypatt) if not exists(workingfile(k))}
 
 
 def todolist() -> Set[str]:
@@ -79,36 +81,37 @@ def todolist() -> Set[str]:
 
 
 def islocked(key: str) -> bool:
-    wdir = workingdir(key)
-    locker = f'{wdir}.locked'
+    out = workingfile(key)
+    locker = f'{out}.locked'
     return exists(locker)
 
 
+def quote(string: str) -> str:
+    return f'"{string}"'
+
+
 def work(key: str) -> None:
-    wdir = workingdir(key)
-    locker = f'{wdir}.locked'
+    out = workingfile(key)
+    locker = f'{out}.locked'
     print(f"[{datetime.now()}] Working on key '{key}'...")
-    with open(locker, 'w'):
-        makedirs(wdir)
-        inwdir = partial(join, wdir)
-        job = inwdir('job.sh')
-        with open(inwdir('log.out'), 'w') as out, open(inwdir('log.err'), 'w') as err:
-            with open(job, 'w') as f, path(rsc, 'exportas.py') as exe:
-                f.write(dedent(
-                    """\
-                    #!/bin/bash
-                    docker run -ti --rm  \\
-                        -v $(pwd):$(pwd) \\
-                        -v /home:/home \\
-                        daehyunpy/sp8-delayline "{exe}" \\
-                            "{targets}" \\
-                            -o "{output}"
-                    """.format(exe=exe,
-                               targets='" \\\n        "'.join([f for f in targetlist() if keypatt(f)==key]),
-                               output=inwdir(f"{key}.root"))
-                ))
-            chmod(job, stat(job).st_mode|S_IEXEC)
-            call(job, stdout=out, stderr=err, cwd=wdir)
+    with open(locker, 'w'):)
+        with path(rsc, 'exportas.py') as exe:
+            client = docker.from_env()
+            client.containers.run(
+                'daehyunpy/sp8-delayline',
+                " ".join([
+                    '/app/exe',
+                    *[quote(f) for f in targetlist() if keypatt(f)==key],
+                    '-o',
+                    quote(out),
+                ]),
+                remove=True,
+                working_dir='/app/',
+                volumes={
+                    exe: {'bind': '/app/exe', 'ro'},
+                    mountpoint: {'bind': mountpoint, 'rw'},
+                },
+            )
     remove(locker)
 
 
