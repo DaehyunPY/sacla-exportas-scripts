@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-"""
-Preanalyzing daemon.
-"""
 # %% import external dependencies
 from glob import glob
 from stat import S_IEXEC
@@ -17,6 +13,8 @@ from subprocess import call
 from textwrap import dedent
 
 from importlib_resources import path
+
+from . import rsc
 
 
 __all__ = ['run']
@@ -52,9 +50,6 @@ def keypatt(lmafilename: str) -> str:
 
 
 def targetlist() -> List[str]:
-    """
-    Target lma file list.
-    """
     return glob(f'/home/uedalab/Desktop/parquet_files/*.parquet')
 
 
@@ -95,24 +90,25 @@ def work(key: str) -> None:
     print(f"[{datetime.now()}] Working on key '{key}'...")
     with open(locker, 'w'):
         makedirs(wdir)
-        job = join(wdir, 'job.sh')
-        with open(join(wdir, 'log.out'), 'w') as out, open(join(wdir, 'log.err'), 'w') as err:
-            with open(job, 'w') as f:
+        inwdir = partial(join, wdir)
+        job = inwdir('job.sh')
+        with open(inwdir('log.out'), 'w') as out, open(inwdir('log.err'), 'w') as err:
+            with open(job, 'w') as f, path(rsc, 'exportas.py') as exe:
                 f.write(dedent(
                     """\
                     #!/bin/bash
                     docker run -ti --rm  \\
                         -v $(pwd):$(pwd) \\
                         -v /home:/home \\
-                        daehyunpy/sp8-delayline {exe} \\
-                            {targets} \\
-                            -o {output}
-                    """.format(exe=f'"{realpath("exportas.py")}"',
-                            targets=' \\\n        '.join([f'"{f}"' for f in targetlist() if keypatt(f)==key]),
-                            output=f'"{join(wdir, f"{key}.root")}"')
+                        daehyunpy/sp8-delayline "{exe}" \\
+                            "{targets}" \\
+                            -o "{output}"
+                    """.format(exe=exe,
+                               targets='" \\\n        "'.join([f for f in targetlist() if keypatt(f)==key]),
+                               output=inwdir(f"{key}.root"))
                 ))
             chmod(job, stat(job).st_mode|S_IEXEC)
-            call(job, stdout=out, stderr=err)
+            call(job, stdout=out, stderr=err, cwd=wdir)
     remove(locker)
 
 
