@@ -22,7 +22,7 @@ __all__ = ['run']
 # %% parameters
 maxworkers = 3
 startinterval = 30
-mountpoint = '/run/user/1000/gvfs/sftp:host=xhpcfep02,user=fukuzawa/work/uedalab/2018A8038Ueda'
+mountpoint = '/mnt/work/2018A8038Ueda'
 
 
 def workingfile(key: str) -> str:
