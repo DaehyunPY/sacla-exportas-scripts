@@ -40,16 +40,16 @@ with builder.getOrCreate() as spark:
         tree = TTree('Events', 'Events')
         tag = array('i', [0])
         nhits = array('i', [0])
-        tarr = [array('f', [0]) for _ in range(maxhits)]
-        xarr = [array('f', [0]) for _ in range(maxhits)]
-        yarr = [array('f', [0]) for _ in range(maxhits)]
+        tarr = [array('d', [0]) for _ in range(maxhits)]
+        xarr = [array('d', [0]) for _ in range(maxhits)]
+        yarr = [array('d', [0]) for _ in range(maxhits)]
         flagarr = [array('i', [0]) for _ in range(maxhits)]
         tree.Branch('Tag', tag, 'Tag/I')
         tree.Branch('IonNum', nhits, 'IonNum/I')
         for i in range(maxhits):
-            tree.Branch(f'IonT{i}', tarr[i], f'IonT{i}/F')
-            tree.Branch(f'IonX{i}', xarr[i], f'IonX{i}/F')
-            tree.Branch(f'IonY{i}', yarr[i], f'IonY{i}/F')
+            tree.Branch(f'IonT{i}', tarr[i], f'IonT{i}/D')
+            tree.Branch(f'IonX{i}', xarr[i], f'IonX{i}/D')
+            tree.Branch(f'IonY{i}', yarr[i], f'IonY{i}/D')
             tree.Branch(f'IonFlag{i}', flagarr[i], f'IonFlag{i}/I')
         for d in df.toLocalIterator():
             tag[0] = d.tag
