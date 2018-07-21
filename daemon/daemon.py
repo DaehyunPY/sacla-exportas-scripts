@@ -22,14 +22,14 @@ __all__ = ['run']
 # %% parameters
 maxworkers = 3
 startinterval = 30
-mountpoint = '/home/uedalab/Desktop'
+mountpoint = '/run/user/1000/gvfs/sftp:host=xhpcfep02,user=fukuzawa/work/uedalab/2018A8038Ueda'
 
 
 def workingfile(key: str) -> str:
     """
     Working dir where a preanalyzing process works.
     """
-    return f'{mountpoint}/flatten_root_files/{key}.root'
+    return f'{mountpoint}/markus_files/{key}.root'
 
 
 def keypatt(filename: str) -> str:
@@ -50,7 +50,7 @@ def keypatt(filename: str) -> str:
 
 
 def targetlist() -> List[str]:
-    return glob(f'{mountpoint}/parquet_files/*.parquet')
+    return glob(f'{mountpoint}/merged_files/*.parquet')
 
 
 # %%
