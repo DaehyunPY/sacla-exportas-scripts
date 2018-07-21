@@ -46,6 +46,7 @@ with builder.getOrCreate() as spark:
         flagarr = [array('i', [0]) for _ in range(maxhits)]
         fel_status = array('i', [0])
         fel_shutter = array('i', [0])
+        fel_intensity = array('d', [0])
         laser_shutter = array('i', [0])
         delay_motor_st4 = array('i', [0])
         delay_motor_st1 = array('i', [0])
@@ -59,6 +60,7 @@ with builder.getOrCreate() as spark:
             tree.Branch(f'IonFlag{i}', flagarr[i], f'IonFlag{i}/I')
         tree.Branch('FelStatus', fel_status, 'FelStatus/I')
         tree.Branch('FelShutter', fel_shutter, 'FelShutter/I')
+        tree.Branch('FelIntensity', fel_intensity, 'FelIntensity/D')
         tree.Branch('LaserShutter', laser_shutter, 'LaserShutter/I')
         tree.Branch('DelayMotorSt4', delay_motor_st4, 'DelayMotorSt4/I')
         tree.Branch('DelayMotorSt1', delay_motor_st1, 'DelayMotorSt1/I')
@@ -71,12 +73,13 @@ with builder.getOrCreate() as spark:
                 xarr[i][0] = h.x
                 yarr[i][0] = h.y
                 flagarr[i][0] = h.flag
-            fel_status[0] = h.fel_status
-            fel_shutter[0] = h.fel_shutter
-            laser_shutter[0] = h.laser_shutter
-            delay_motor_st4[0] = h.delay_motor_st4
-            delay_motor_st1[0] = h.delay_motor_st1
-            tma_edge[0] = h.tma_edge
+            fel_status[0] = d.fel_status
+            fel_shutter[0] = d.fel_shutter
+            fel_intensity[0] = d.fel_intensity
+            laser_shutter[0] = d.laser_shutter
+            delay_motor_st4[0] = d.delay_motor_st4
+            delay_motor_st1[0] = d.delay_motor_st1
+            tma_edge[0] = d.tma_edge
             tree.Fill()
         f.Write()
         f.Close()
