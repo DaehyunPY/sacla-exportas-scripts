@@ -1,7 +1,7 @@
 # %% import external dependencies
 from glob import glob
 from os import remove
-from os.path import basename, splitext, exists, getmtime
+from os.path import basename, splitext, exists, getmtime, getctime
 from typing import List, Set, Mapping
 from time import sleep
 from datetime import datetime, timedelta
@@ -59,8 +59,8 @@ def currentkeys() -> Mapping[str, float]:
     Current keys (lma file groups) have to be preanalyzed and their last modifed timestamp.
     Do not return keys which already have been analyzed.
     """
-    return  {k: max(getmtime(f) for f in groupped)
-             for k, groupped in groupby(targetlist(), keypatt) if not exists(workingfile(k))}
+    mtimes = {k: max(getmtime(f) for f in groupped) for k, groupped in groupby(targetlist(), keypatt)}
+    return {k: m for k, m in mtimes.items() if not exists(workingfile(k)) or getctime(workingfile(k)) < m}
 
 
 def todolist() -> Set[str]:

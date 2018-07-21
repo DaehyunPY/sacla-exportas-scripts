@@ -19,7 +19,7 @@ parser.add_argument('-o', '--output', metavar='filename', type=str, default='exp
 args = parser.parse_args()
 targets = args.parquetfiles
 saveas = args.output
-maxhits = 8
+maxhits = 16
 
 
 # %% initialize spark builder
@@ -36,7 +36,7 @@ builder = (SparkSession
 with builder.getOrCreate() as spark:
     df = spark.read.parquet(*targets)
     try:
-        f = TFile(saveas, 'NEW')
+        f = TFile(saveas, 'RECREATE')
         tree = TTree('Events', 'Events')
         tag = array('i', [0])
         nhits = array('i', [0])
