@@ -1,7 +1,7 @@
 # %% import external dependencies
 from glob import glob
 from os import remove
-from os.path import basename, splitext, exists, getmtime
+from os.path import basename, splitext, exists, getmtime, getctime
 from typing import List, Set, Mapping
 from time import sleep
 from datetime import datetime, timedelta
@@ -22,14 +22,14 @@ __all__ = ['run']
 # %% parameters
 maxworkers = 3
 startinterval = 30
-mountpoint = '/home/uedalab/Desktop'
+mountpoint = '/mnt/work/2018A8038Ueda'
 
 
 def workingfile(key: str) -> str:
     """
     Working dir where a preanalyzing process works.
     """
-    return f'{mountpoint}/flatten_root_files/{key}.root'
+    return f'{mountpoint}/markus_files/{key}.root'
 
 
 def keypatt(filename: str) -> str:
@@ -50,7 +50,7 @@ def keypatt(filename: str) -> str:
 
 
 def targetlist() -> List[str]:
-    return glob(f'{mountpoint}/parquet_files/*.parquet')
+    return glob(f'{mountpoint}/merged_files/*.parquet')
 
 
 # %%
@@ -59,23 +59,20 @@ def currentkeys() -> Mapping[str, float]:
     Current keys (lma file groups) have to be preanalyzed and their last modifed timestamp.
     Do not return keys which already have been analyzed.
     """
-    return  {k: max(getmtime(f) for f in groupped)
-             for k, groupped in groupby(targetlist(), keypatt) if not exists(workingfile(k))}
+    mtimes = {k: max(getmtime(f) for f in groupped) for k, groupped in groupby(targetlist(), keypatt)}
+    return {k: m for k, m in mtimes.items() if not exists(workingfile(k)) or getctime(workingfile(k)) < m}
 
 
 def todolist() -> Set[str]:
     print(f"[{datetime.now()}] Scanning parquet files...")
     lastkeys = currentkeys()
-    lastchecked = datetime.now()
+    sleep(startinterval)
     while True:
-        if datetime.now() < lastchecked + timedelta(seconds=startinterval):
-            sleep(startinterval)
-            continue
         print(f"[{datetime.now()}] Scanning new parquet files...")
         curr = currentkeys()
-        lastchecked = datetime.now()
         yield sorted(k for k in curr if k in lastkeys and curr[k] <= lastkeys[k])
         lastkeys = curr
+        sleep(startinterval)
 
 
 def islocked(key: str) -> bool:
@@ -122,6 +119,7 @@ def work(key: str) -> None:
 # %% inf loop
 def run() -> None:
     for jobs in todolist():
+        print(f"[{datetime.now()}] Todo list: {' '.join(jobs)}")
         for key in jobs:
             if not islocked(key) and active_count()-1 < maxworkers:
                 job = Thread(target=work, args=[key])
